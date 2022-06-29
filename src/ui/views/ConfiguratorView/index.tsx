@@ -33,7 +33,6 @@ import DeviceOptionsForm, {
 } from '../../components/DeviceOptionsForm';
 import ShowAlerts from '../../components/ShowAlerts';
 import CardTitle from '../../components/CardTitle';
-import EventsBatcher from '../../library/EventsBatcher';
 import Logs from '../../components/Logs';
 import BuildProgressBar from '../../components/BuildProgressBar';
 import BuildNotificationsList from '../../components/BuildNotificationsList';
@@ -41,7 +40,6 @@ import {
   BuildFirmwareErrorType,
   BuildFlashFirmwareInput,
   BuildJobType,
-  BuildProgressNotification,
   Device,
   DeviceType,
   FirmwareSource,
@@ -52,8 +50,6 @@ import {
   TargetDeviceOptionsQuery,
   useAvailableFirmwareTargetsLazyQuery,
   useBuildFlashFirmwareMutation,
-  useBuildLogUpdatesSubscription,
-  useBuildProgressNotificationsSubscription,
   useLuaScriptLazyQuery,
   UserDefineKey,
   UserDefineKind,
@@ -84,6 +80,8 @@ import useAppState from '../../hooks/useAppState';
 import AppStatus from '../../models/enum/AppStatus';
 import MainLayout from '../../layouts/MainLayout';
 import SplitButton from '../../components/SplitButton';
+import useBuildProgressNotifications from '../../hooks/useBuildProgressNotifications';
+import useBuildLogs from '../../hooks/useBuildLogs';
 
 const styles: Record<string, SxProps<Theme>> = {
   button: {
@@ -163,50 +161,13 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
 
   const { setAppStatus } = useAppState();
 
-  const [progressNotifications, setProgressNotifications] = useState<
-    BuildProgressNotification[]
-  >([]);
-  const progressNotificationsRef = useRef<BuildProgressNotification[]>([]);
-  const [lastProgressNotification, setLastProgressNotification] =
-    useState<BuildProgressNotification | null>(null);
+  const {
+    buildProgressNotifications: progressNotifications,
+    lastBuildProgressNotification: lastProgressNotification,
+    resetBuildProgressNotifications: resetProgressNotifications,
+  } = useBuildProgressNotifications();
 
-  useBuildProgressNotificationsSubscription({
-    onSubscriptionData: (options) => {
-      const args = options.subscriptionData.data?.buildProgressNotifications;
-      if (args !== undefined) {
-        const newNotificationsList = [
-          ...progressNotificationsRef.current,
-          args,
-        ];
-        progressNotificationsRef.current = newNotificationsList;
-        setProgressNotifications(newNotificationsList);
-        setLastProgressNotification(args);
-      }
-    },
-  });
-
-  /*
-    We batch log events in order to save React.js state updates and rendering performance.
-   */
-  const [logs, setLogs] = useState<string>('');
-  const logsRef = useRef<string[]>([]);
-  const eventsBatcherRef = useRef<EventsBatcher<string> | null>(null);
-  useEffect(() => {
-    eventsBatcherRef.current = new EventsBatcher<string>(200);
-    eventsBatcherRef.current.onBatch((newLogs) => {
-      const newLogsList = [...logsRef.current, ...newLogs];
-      logsRef.current = newLogsList;
-      setLogs(newLogsList.join(''));
-    });
-  }, []);
-  useBuildLogUpdatesSubscription({
-    onSubscriptionData: (options) => {
-      const args = options.subscriptionData.data?.buildLogUpdates.data;
-      if (args !== undefined && eventsBatcherRef.current !== null) {
-        eventsBatcherRef.current.enqueue(args);
-      }
-    },
-  });
+  const { buildLogs, resetBuildLogs } = useBuildLogs();
 
   const [firmwareVersionData, setFirmwareVersionData] =
     useState<FirmwareVersionDataInput | null>(null);
@@ -530,15 +491,12 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
     useState<Error[] | null>(null);
 
   const reset = () => {
-    logsRef.current = [];
-    progressNotificationsRef.current = [];
-    setLogs('');
+    resetBuildLogs();
     setFirmwareVersionErrors([]);
     setDeviceTargetErrors([]);
     setDeviceOptionsValidationErrors([]);
 
-    setProgressNotifications([]);
-    setLastProgressNotification(null);
+    resetProgressNotifications();
   };
 
   const onBack = () => {
@@ -778,7 +736,7 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
 
   const saveBuildLogToFile = useCallback(async () => {
     const saveFileRequestBody: SaveFileRequestBody = {
-      data: logs,
+      data: buildLogs,
       defaultPath: `ExpressLRSBuildLog_${new Date()
         .toISOString()
         .replace(/[^0-9]/gi, '')}.txt`,
@@ -798,7 +756,7 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
         openFileLocationRequestBody
       );
     }
-  }, [logs]);
+  }, [buildLogs]);
 
   return (
     <MainLayout>
@@ -1030,7 +988,7 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
             <ShowAlerts severity="error" messages={buildFlashErrorResponse} />
           </CardContent>
 
-          {logs.length > 0 && (
+          {buildLogs.length > 0 && (
             <>
               <CardTitle
                 icon={<SettingsIcon />}
@@ -1042,7 +1000,7 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
                         aria-label="Copy log to clipboard"
                         title="Copy log to clipboard"
                         onClick={async () => {
-                          await navigator.clipboard.writeText(logs);
+                          await navigator.clipboard.writeText(buildLogs);
                         }}
                       >
                         <ContentCopy />
@@ -1068,7 +1026,7 @@ const ConfiguratorView: FunctionComponent<ConfiguratorViewProps> = (props) => {
                     timeout={14 * 1000}
                   />
                 </Box>
-                <Logs data={logs} />
+                <Logs data={buildLogs} />
               </CardContent>
               <Divider />
             </>

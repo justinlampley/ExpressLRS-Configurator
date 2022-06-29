@@ -16,6 +16,8 @@ import { DeviceType, MulticastDnsInformation } from './gql/generated/types';
 import useNetworkDevices from './hooks/useNetworkDevices';
 import WifiDeviceNotification from './components/WifiDeviceNotification';
 import AppStateProvider from './context/AppStateProvider';
+import BuildProgressNotificationsProvider from './context/BuildProgressNotificationsProvider';
+import BuildLogsProvider from './context/BuildLogsProvider';
 
 const App = () => {
   const { networkDevices, newNetworkDevices, removeDeviceFromNewList } =
@@ -45,49 +47,56 @@ const App = () => {
         <CssBaseline />
         <ApolloProvider client={client}>
           <AppStateProvider>
-            <HashRouter>
-              <Routes>
-                <Route
-                  path="/"
-                  element={<Navigate replace to="/configurator" />}
-                />
-                <Route
-                  path="/configurator"
-                  element={
-                    <ConfiguratorView
-                      key="configurator"
-                      gitRepository={Config.expressLRSGit}
-                      selectedDevice={device}
-                      networkDevices={networkDevices}
-                      onDeviceChange={onDeviceChange}
-                      deviceType={DeviceType.ExpressLRS}
+            <BuildProgressNotificationsProvider>
+              <BuildLogsProvider>
+                <HashRouter>
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={<Navigate replace to="/configurator" />}
                     />
-                  }
-                />
-                <Route
-                  path="/backpack"
-                  element={
-                    <ConfiguratorView
-                      key="backpack"
-                      gitRepository={Config.backpackGit}
-                      selectedDevice={device}
-                      networkDevices={networkDevices}
-                      onDeviceChange={onDeviceChange}
-                      deviceType={DeviceType.Backpack}
+                    <Route
+                      path="/configurator"
+                      element={
+                        <ConfiguratorView
+                          key="configurator"
+                          gitRepository={Config.expressLRSGit}
+                          selectedDevice={device}
+                          networkDevices={networkDevices}
+                          onDeviceChange={onDeviceChange}
+                          deviceType={DeviceType.ExpressLRS}
+                        />
+                      }
                     />
-                  }
+                    <Route
+                      path="/backpack"
+                      element={
+                        <ConfiguratorView
+                          key="backpack"
+                          gitRepository={Config.backpackGit}
+                          selectedDevice={device}
+                          networkDevices={networkDevices}
+                          onDeviceChange={onDeviceChange}
+                          deviceType={DeviceType.Backpack}
+                        />
+                      }
+                    />
+                    <Route path="/settings" element={<SettingsView />} />
+                    <Route path="/logs" element={<LogsView />} />
+                    <Route
+                      path="/serial-monitor"
+                      element={<SerialMonitorView />}
+                    />
+                    <Route path="/support" element={<SupportView />} />
+                  </Routes>
+                </HashRouter>
+                <WifiDeviceNotification
+                  newNetworkDevices={newNetworkDevices}
+                  removeDeviceFromNewList={removeDeviceFromNewList}
+                  onDeviceChange={onDeviceChange}
                 />
-                <Route path="/settings" element={<SettingsView />} />
-                <Route path="/logs" element={<LogsView />} />
-                <Route path="/serial-monitor" element={<SerialMonitorView />} />
-                <Route path="/support" element={<SupportView />} />
-              </Routes>
-            </HashRouter>
-            <WifiDeviceNotification
-              newNetworkDevices={newNetworkDevices}
-              removeDeviceFromNewList={removeDeviceFromNewList}
-              onDeviceChange={onDeviceChange}
-            />
+              </BuildLogsProvider>
+            </BuildProgressNotificationsProvider>
           </AppStateProvider>
         </ApolloProvider>
       </ThemeProvider>
